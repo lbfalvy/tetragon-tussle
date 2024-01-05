@@ -1,27 +1,23 @@
-# React + TypeScript + Vite
+# Tetragon Tussle
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A couch multiplayer game inspired by Square Brawl, but hopefully with fewer bugs, attempting to capture the spirit of Fireboy & Watergirl and other iconic local multiplayer flash games.
 
-Currently, two official plugins are available:
+## Tech stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Just typescript really, the game draws graphics directly with JS to a HTML5 canvas. React is there to make menu building quicker and isn't referenced in any game logic.
 
-## Expanding the ESLint configuration
+## To-Do, in no particular order
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+- scoring, gamemodes, game over screen
+- HP, HP indicator
+- more maps & a map selector
+- more weapons & a concurrent weapon selector
+- secondary weapon support
+- saving input tables to localStorage
+- controller input
 
-- Configure the top-level `parserOptions` property like this:
+## I would like to have these
 
-```js
-   parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-   },
-```
-
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+- online multiplayer through authoritative server
+- enemy AI, player teams
+- fancy effects (Square Brawl uses Unity physics but we can do other things)
