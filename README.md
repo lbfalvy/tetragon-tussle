@@ -13,7 +13,6 @@ Just typescript really, the game draws graphics directly with JS to a HTML5 canv
 - more maps & a map selector
 - more weapons & a concurrent weapon selector
 - secondary weapon support
-- saving input tables to localStorage
 - controller input
 
 ## I would like to have these

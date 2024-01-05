@@ -1,5 +1,4 @@
 import { Game, PLAYER_RADIUS, PlayerState, fillArea, kill, playArea, playerBox } from "../game";
-import { getKey } from "../keystates";
 import { Box } from "../util/box";
 
 export function makeRevolver(game: Game, player: PlayerState, trigger: string): () => void {
@@ -13,21 +12,24 @@ export function makeRevolver(game: Game, player: PlayerState, trigger: string): 
   const revolver = game.createEntity({
     tick(_, dt) {
       time_since_last_shot += dt;
-      if (clip === 0 || !getKey(trigger) || time_since_last_shot <= SHOT_SPACING) return;
+      if (
+        clip === 0
+        || !player.cfg.moveset.getSwitch(trigger)
+        || time_since_last_shot <= SHOT_SPACING
+      ) return;
       // shoot
       time_since_last_shot = 0;
       if (--clip === 0) setTimeout(() => clip = 6, RELOAD_TIME);
       const hdg = player.cfg.moveset.getHdgInput();
       const v = hdg.normalize().scale(BULLET_V);
       player.v = player.v.add(hdg.normalize().scale(-KNOCKBACK));
-      let pos = hdg.scale(BULLET_RADIUS + PLAYER_RADIUS + 0.1).add(player.pos);
+      let pos = hdg.scale(BULLET_RADIUS + PLAYER_RADIUS + 0.01).add(player.pos);
       game.createEntity({
         draw(_entity, ctx) {
           ctx.fillStyle = "yellow"
           fillArea(ctx, Box.square(pos, BULLET_RADIUS));
         },
         tick(entity, dt) {
-          pos = v.scale(dt).add(pos);
           if (!playArea(game.cfg).contains(pos) || game.cfg.board.getTile(pos) === "wall") {
             game.entities.delete(entity.id);
           }
@@ -37,6 +39,7 @@ export function makeRevolver(game: Game, player: PlayerState, trigger: string): 
               game.entities.delete(entity.id);
             }
           }
+          pos = v.scale(dt).add(pos);
         },
       })
     }

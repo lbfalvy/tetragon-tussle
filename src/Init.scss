@@ -1,7 +1,22 @@
 .PlayerForm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   .color-sample {
     display: inline-block;
-    width: 1em;
-    height: 1em;
+    width: 25px;
+    height: 25px;
+  }
+}
+
+.Init {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  .player-list {
+    display: flex;
+    flex-direction: row;
   }
 }

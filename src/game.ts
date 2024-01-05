@@ -5,11 +5,7 @@ import { Store, store } from "./util/store";
 import { between, signedDiffModulo } from "./util/maths";
 import { Board } from "./board";
 import { increments } from "./util/increments";
-
-export interface MoveSet {
-  getHdgInput(): Vec2;
-  getMoveInput(): Vec2;
-}
+import { MoveSet } from "./Moveset";
 
 export interface PlayerCfg {
   moveset: MoveSet,
@@ -50,11 +46,19 @@ export interface EntityState {
 export class Game {
   public players: Store<PlayerState>;
   public entities: Store<EntityState>;
+  public ctx: CanvasRenderingContext2D|undefined;
+  public BG_COLOR = "#aaa";
+  public lastTime: DOMHighResTimeStamp|undefined;
+
+  public stop: (() => void) | undefined;
+
   public constructor(
     public readonly cfg: GameCfg,
   ) {
     this.players = store();
     this.entities = store();
+    for (const pcfg of cfg.players) this.spawn(pcfg);
+    for (const ecfg of cfg.entities) this.createEntity(ecfg);
   }
 
   public createEntity(cfg: EntityCfg): EntityState {
@@ -67,8 +71,57 @@ export class Game {
     cfg.onSpawn(this, player);
     return player;
   }
+  
+  private setCtx(canvas: HTMLCanvasElement) {
+    this.ctx = getCtx(canvas);
+    this.ctx.fillStyle = "#222";
+    this.cfg.board.startUnderscan(this.ctx);
+  }
 
-  public BG_COLOR = "#aaa";
+  public playOn(canvas: HTMLCanvasElement) {
+    console.log("Starting game")
+    this.stop?.();
+    this.setCtx(canvas);
+    const sizeObserver = new ResizeObserver(() => {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+      this.setCtx(canvas);
+    });
+    sizeObserver.observe(canvas);
+    const cancelLoop = startAnimation(time => {
+      this.draw();
+      this.tick(time);
+    })
+    this.stop = () => {
+      sizeObserver.disconnect();
+      cancelLoop();
+      this.ctx = undefined;
+      this.stop = undefined;
+    }
+  }
+
+  public draw() {
+    if (this.ctx === undefined) throw new Error("Draw requested after stop");
+    // Board
+    this.ctx.fillStyle = this.BG_COLOR;
+    this.cfg.board.drawTiles(this.ctx);
+    // Players
+    for (const [_, player] of this.players) {
+      this.ctx.fillStyle = player.cfg.colour;
+      fillArea(this.ctx, playerBox(player));
+      const hdg = player.cfg.moveset.getHdgInput();
+      if (!hdg.isZero()) fillArea(this.ctx, Box.square(player.pos.add(hdg.scale(0.5)), 0.05));
+    }
+    // Call entity drawing functions
+    for (const [_, entity] of this.entities) entity.cfg.draw?.(entity, this.ctx);
+  }
+
+  public tick(currentTime: DOMHighResTimeStamp) {
+    const dt = this.lastTime === undefined ? 0 : currentTime - this.lastTime;
+    for (const [_, entity] of this.entities) entity.cfg.tick?.(entity, dt);
+    for (const [_, player] of this.players) updatePlayer(player, dt);
+    this.lastTime = currentTime;
+  }
 }
 
 export const playerBox = (player: PlayerState): Box =>
@@ -83,21 +136,6 @@ export function playArea(game: GameCfg): Box {
 }
 
 export const PLAYER_RADIUS = 0.25;
-
-function drawGame(game: Game, ctx: CanvasRenderingContext2D) {
-  // Board
-  ctx.fillStyle = game.BG_COLOR;
-  game.cfg.board.drawTiles(ctx);
-  // Players
-  for (const [_, player] of game.players) {
-    ctx.fillStyle = player.cfg.colour;
-    fillArea(ctx, playerBox(player));
-    const hdg = player.cfg.moveset.getHdgInput();
-    if (!hdg.isZero()) fillArea(ctx, Box.square(player.pos.add(hdg.scale(0.5)), 0.05));
-  }
-  // Call entity drawing functions
-  for (const [_, entity] of game.entities) entity.cfg.draw?.(entity, ctx);
-}
 
 function bump(player: PlayerState, offset: Vec2) {
   player.pos = player.pos.add(offset);
@@ -174,68 +212,37 @@ function getCtx(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   return ctx;
 }
 
-export function startGame(canvas: HTMLCanvasElement, cfg: GameCfg): () => void {
-  
-  const boardSize = cfg.board.dimensions();
-  console.log(`Starting game with ${boardSize} board`);
-  const game = new Game(cfg);
-  for (const pcfg of cfg.players) game.spawn(pcfg);
-  for (const ecfg of cfg.entities) game.createEntity(ecfg);
-  let ctx = getCtx(canvas);
-  ctx.fillStyle = "#222";
-  cfg.board.startUnderscan(ctx);
-  const sizeObserver = new ResizeObserver(() => {
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
-    ctx = getCtx(canvas);
-    ctx.fillStyle = "#222";
-    cfg.board.startUnderscan(ctx);
-    drawGame(game, ctx);
-  });
-  sizeObserver.observe(canvas);
-  let lastTime: DOMHighResTimeStamp | undefined;
-  const cancelRender = startAnimation(time => {
-    drawGame(game, ctx);
-    const dt = lastTime === undefined ? 0 : time - lastTime;
-    for (const [_, entity] of game.entities) entity.cfg.tick?.(entity, dt);
-    for (const [_, player] of game.players) {
-      const input = player.cfg.moveset.getMoveInput();
-      const MAX_MOVE = 0.01;
-      const MAX_Y_MOVE = 0.0005;
-      const JUMP_V = 0.0006 * dt;
-      const WALLJUMP_V = 0.0005 * dt;
-      const ACCEL = 0.00005 * dt;
-      const Y_ACCEL = 0.000015 * dt;
-      const boundedUpdate = (v: Vec2, axis: Axis, bound: number, change: number) => v.set(axis,
-        0 < change
-          ? Math.max(v.get(axis), Math.min(bound, v.get(axis) + change))
-          : Math.min(v.get(axis), Math.max(-bound, v.get(axis) + change))
-      );
-      player.v = boundedUpdate(player.v, "x", MAX_MOVE, input.getX() * ACCEL);
-      if (input.getY() === -1 && player.collision !== undefined) {
-        const floor_jump = between(1 / 4 * Math.PI, player.collision.angle(), 3 / 4 * Math.PI);
-        player.v = player.v.setY(floor_jump ? -JUMP_V : -WALLJUMP_V);
-      } else {
-        player.v = boundedUpdate(player.v, "y", MAX_Y_MOVE, input.getY() * Y_ACCEL);
-      }
-      // friction
-      if (player.collision) {
-        const FRICTION_DRAG = Math.pow(0.99, dt);
-        // horizontal
-        if (player.collision.getY() !== 0 && input.getX() === 0) {
-          player.v = player.v.setX(player.v.getX() < 0.000001 ? 0 : player.v.getX() * FRICTION_DRAG);
-        }
-        // vertical drag
-        if (player.collision.getX() !== 0) player.v = player.v.setY(player.v.getY() * FRICTION_DRAG);
-      }
-      player.v = player.v.add(new Vec2(0, 0.00003 * dt));
-      if (!playArea(cfg).contains(player.pos)) kill(player);
-      apply_V(player, dt);
-    }
-    lastTime = time;
-  });
-  return () => {
-    cancelRender();
-    sizeObserver.disconnect();
+function updatePlayer(player: PlayerState, dt: DOMHighResTimeStamp) {
+  const input = player.cfg.moveset.getMoveInput();
+  const MAX_MOVE = 0.01;
+  const MAX_Y_MOVE = 0.0005;
+  const JUMP_V = 0.0006 * dt;
+  const WALLJUMP_V = 0.0005 * dt;
+  const ACCEL = 0.00005 * dt;
+  const Y_ACCEL = 0.000015 * dt;
+  const boundedUpdate = (v: Vec2, axis: Axis, bound: number, change: number) => v.set(axis,
+    0 < change
+      ? Math.max(v.get(axis), Math.min(bound, v.get(axis) + change))
+      : Math.min(v.get(axis), Math.max(-bound, v.get(axis) + change))
+  );
+  player.v = boundedUpdate(player.v, "x", MAX_MOVE, input.getX() * ACCEL);
+  if (input.getY() === -1 && player.collision !== undefined) {
+    const floor_jump = between(1 / 4 * Math.PI, player.collision.angle(), 3 / 4 * Math.PI);
+    player.v = player.v.setY(floor_jump ? -JUMP_V : -WALLJUMP_V);
+  } else {
+    player.v = boundedUpdate(player.v, "y", MAX_Y_MOVE, input.getY() * Y_ACCEL);
   }
+  // friction
+  if (player.collision) {
+    const FRICTION_DRAG = Math.pow(0.99, dt);
+    // horizontal
+    if (player.collision.getY() !== 0 && input.getX() === 0) {
+      player.v = player.v.setX(player.v.getX() < 0.000001 ? 0 : player.v.getX() * FRICTION_DRAG);
+    }
+    // vertical drag
+    if (player.collision.getX() !== 0) player.v = player.v.setY(player.v.getY() * FRICTION_DRAG);
+  }
+  player.v = player.v.add(new Vec2(0, 0.00003 * dt));
+  if (!playArea(player.game.cfg).contains(player.pos)) kill(player);
+  apply_V(player, dt);
 }
