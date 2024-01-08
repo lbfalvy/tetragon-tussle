@@ -1,11 +1,12 @@
 import React from "react";
 import "./Init.scss";
 import { KeyList, ListEdit } from "./ListEdit";
-import { EntityCfg, GameCfg } from "./game";
-import { Board } from "./board";
-import { Vec2 } from "./util/vec2";
-import { makeRevolver } from "./weapons.ts/revolver";
-import { EditMoveset, MoveSet, defaultInputs, parseMoveSet, serializeMoveSet } from "./Moveset";
+import { GameCfg } from "./Game";
+import { MAPS, drawMap } from "./Map";
+import { Gun } from "./weapons/gun";
+import { EditMoveset, MoveSet, defaultInputs, parseMoveSet, serializeMoveSet } from "./controls/Moveset";
+import { classList } from "@lbfalvy/react-utils";
+import { Shield } from "./weapons/shield";
 
 interface PlayerConfig {
   color: string,
@@ -15,6 +16,14 @@ interface PlayerConfig {
 interface UserConfigProps { value: PlayerConfig, onChange: (pc: PlayerConfig | undefined) => void }
 
 const COLOURS = ["#f00", "#0f0", "#00f", "#ff0", "#f0f", "#0ff"];
+
+export function lighten(color: string): string {
+  return `${color.replaceAll('0', '8')}8`;
+}
+
+export function halfLighten(color: string): string {
+  return `${color.replaceAll('f', '8')}c`;
+}
 
 const playerCountContext = React.createContext(0);
 
@@ -32,12 +41,6 @@ export function PlayerForm({ value, onChange }: UserConfigProps): React.ReactEle
       <button className="delete" onClick={() => onChange(undefined)}>Delete</button>
     :null}
   </div>
-}
-
-interface Map {
-  board: Board,
-  entities: EntityCfg[],
-  spawn_points: Vec2[],
 }
 
 interface InitProps {
@@ -63,7 +66,7 @@ function savePlayers(pcs: PlayerConfig[]) {
 
 export function Init({ onSubmit }: InitProps): React.ReactElement {
   const [players, setPlayers] = React.useState<KeyList<PlayerConfig>>(() => KeyList.new(loadPlayers()));
-  const [mapId, _setMapId] = React.useState(0);
+  const [mapId, setMapId] = React.useState(0);
   return <playerCountContext.Provider value={players.length()}>
     <div className="Init">
       {players.length() < Math.min(COLOURS.length, MAPS[mapId].spawn_points.length) ?
@@ -74,16 +77,19 @@ export function Init({ onSubmit }: InitProps): React.ReactElement {
         }}>Add player</button>
       :null}
       <button onClick={() => setPlayers(KeyList.new(defaultPlayers()))}>Load default</button>
-      <button onClick={() => {
+      <button autoFocus onClick={() => {
         savePlayers(players.values());
         const map = MAPS[mapId];
         onSubmit({
           players: players.values().map((pc, i) => ({
-            colour: pc.color,
-            moveset: pc.moveset,
+            ...pc,
+            color_light: lighten(pc.color),
+            color_mid: halfLighten(pc.color),
             start: map.spawn_points[i],
             onSpawn(game, player) {
-              makeRevolver(game, player, "primary");
+              const g = game.createEntity(new Gun(player, "primary"));
+              const s = game.createEntity(new Shield(player, "secondary"));
+              return () => { game.entities.delete(g.id); game.entities.delete(s.id); }
             }
           })),
           entities: map.entities,
@@ -93,24 +99,22 @@ export function Init({ onSubmit }: InitProps): React.ReactElement {
       <div className="player-list">
         <ListEdit value={players} onChange={setPlayers} Row={PlayerForm} />
       </div>
+      <div className="map-list">
+        {MAPS.map((map, i) => {
+          const canvasRef = React.useRef<HTMLCanvasElement>(null);
+          React.useEffect(() => {
+            if (canvasRef.current === null) return;
+            return drawMap(map, canvasRef.current);
+          }, []);
+          return <button key={i}
+            onClick={() => setMapId(i)}
+            className={classList(i === mapId && "active")}
+          >
+            <canvas ref={canvasRef} />
+          </button>}
+        )}
+      </div>
     </div>
   </playerCountContext.Provider>
 }
 
-const MAPS: Map[] = [
-  {
-    entities: [],
-    spawn_points: [new Vec2(3, 3), new Vec2(14, 3), new Vec2(4, 6), new Vec2(13, 6)],
-    board: Board.parse(`
-          . . . . . . . . . . . . . . . .
-          . . . . . . . . . . . . . . . .
-          . . . . . . . . . . . . . . . .
-          w w w w . . . w . . . . w w w w
-          . . . . . . . . w . . . . . . .
-          . . . . . . . w w . . . . . . .
-          . . w w w w . w w w w w w w . .
-          . . . . . . w . . . . . . . . .
-          . . . . . . . . . . . . . . . .
-        `)
-  }
-]

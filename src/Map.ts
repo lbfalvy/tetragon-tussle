@@ -1,6 +1,10 @@
-import { Vec2 } from "./util/vec2";
+import { zip } from "@lbfalvy/array-utils";
+import { EntityCfg, PLAYER_RADIUS } from "./Game";
+import { fillArea, withCtx } from "./util/canvas";
+import { Axis, Vec2 } from "./util/vec2";
+import { Box } from "./util/box";
 
-type Tile =
+export type Tile =
   | undefined
   | "wall";
 
@@ -54,19 +58,21 @@ export class Board {
     return this.tiles.map(row => row.map(t => t === "wall" ? "w" : ".").join(" ")).join("\n");
   }
 
-  public startUnderscan(ctx: CanvasRenderingContext2D) {
+  public startUnderscan(ctx: CanvasRenderingContext2D): [Axis, number] {
+    if (ctx.canvas.width * ctx.canvas.height === 0) return ["x", 0];
     const canvasSize = new Vec2(ctx.canvas.width, ctx.canvas.height);
     const canvasAR = canvasSize.tan();
     const boardAR = this.dimensions().tan();
-    const underscan_horizontal = boardAR < canvasAR;
+    const axis = boardAR < canvasAR ? "x" : "y";
     let display_scale: number;
     let display_offset: Vec2;
-    if (underscan_horizontal) {
-      const amount = (canvasAR - boardAR) * canvasSize.getY() / 2;
+    let amount: number;
+    if (axis === "x") {
+      amount = (canvasAR - boardAR) * canvasSize.getY() / 2;
       display_scale = canvasSize.getY() / this.dimensions().getY();
       display_offset = new Vec2(amount, 0);
     } else {
-      const amount = canvasSize.getX() / 2 * (1 / canvasAR - 1 / boardAR);
+      amount = canvasSize.getX() / 2 * (1 / canvasAR - 1 / boardAR);
       display_scale = canvasSize.getX() / this.dimensions().getX();
       display_offset = new Vec2(0, amount);
     }
@@ -76,16 +82,71 @@ export class Board {
     const drawing_area = new Path2D();
     drawing_area.rect(0, 0, ...this.dimensions().toPair());
     ctx.clip(drawing_area, "nonzero");
+    return [axis, amount];
   }
 
-  public drawTiles(ctx: CanvasRenderingContext2D) {
+  public drawTiles(ctx: CanvasRenderingContext2D, bg: string, fg: string) {
+    ctx.fillStyle = bg
     // Background
     ctx.fillRect(0, 0, this.dimensions().getX(), this.dimensions().getY());
     // Tiles
     for (const [x, y, tile] of this.tileList()) {
       if (tile === undefined) continue;
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = fg;
       ctx.fillRect(x, y, 1, 1);
     }
   }
 }
+
+export interface Map {
+  board: Board,
+  entities: EntityCfg[],
+  spawn_points: Vec2[],
+}
+
+export const MAPS: Map[] = [
+  {
+    entities: [],
+    spawn_points: [new Vec2(3, 3), new Vec2(14, 3), new Vec2(4, 6), new Vec2(13, 6)],
+    board: Board.parse(`
+      . . . . . . . . . . . . . . . .
+      . . . . . . . . . . . . . . . .
+      . . . . . . . . . . . . . . . .
+      w w w w . . . w . . . . w w w w
+      . . . . . . . . w . . . . . . .
+      . . . . . . . w w . . . . . . .
+      . . w w w w . w w w w w w w . .
+      . . . . . . w . . . . . . . . .
+      . . . . . . . . . . . . . . . .
+    `)
+  },
+  {
+    entities: [],
+    spawn_points: [new Vec2(3, 3), new Vec2(14, 3), new Vec2(4, 6), new Vec2(13, 6)],
+    board: Board.parse(`
+      w w w w w w w w w w w w w w w w
+      w . . . . . . . . . . . . . . w
+      w . . . . . . . . . . . . . . w
+      w w w w . . . w . . . . w w w w
+      w . . . . . . . w . . . . . . w
+      w . . . . . . w w . . . . . . w
+      w . w w w w . w w w w w w w . w
+      w . . . . . w . . . . . . . . w
+      w w w w w w w w w w w w w w w w
+    `)
+  }
+]
+
+export function drawMap(map: Map, canvas: HTMLCanvasElement): () => void {
+  return withCtx(canvas, ctx => {
+    const playerColours = ["#00f", "#44f", "#66f", "#88f"];
+    map.board.startUnderscan(ctx);
+    map.board.drawTiles(ctx, "#aaa", "#fff");
+    for (const ent of map.entities) ent.draw?.(ctx);
+    for (const [pos, colour] of zip(map.spawn_points, playerColours)) {
+      ctx.fillStyle = colour;
+      fillArea(ctx, Box.square(pos.sub(Vec2.diag(0.5)), PLAYER_RADIUS));
+    }
+  });
+}
+

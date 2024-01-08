@@ -9,17 +9,21 @@ interface KeyInputProps {
 
 export function KeyInput({ onChange, value }: KeyInputProps): React.ReactElement {
   const [cancel, setCancel] = React.useState<() => void>();
+  function handler(ev: KeyboardEvent) {
+    if (ev.key !== "Escape") onChange(ev.key);
+    cancel?.();
+    setCancel(undefined);
+  }
+  const listenerRef = React.useRef(handler);
+  listenerRef.current = handler;
   return <button
     className={classList("KeyInput", cancel !== undefined && "listening")}
     onClick={() => {
-      function listener(ev: KeyboardEvent) {
-        if (ev.key !== "Escape") onChange(ev.key);
-        setCancel(undefined);
-      }
       if (cancel === undefined) {
         console.log("Updating from", value);
-        window.addEventListener("keypress", listener);
-        setCancel(() => () => window.removeEventListener("keypress", listener));
+        const listener = (ev: KeyboardEvent) => { listenerRef.current(ev) }
+        window.addEventListener("keydown", listener);
+        setCancel(() => () => window.removeEventListener("keydown", listener));
       } else {
         console.log("Cancelling key update")
         cancel();

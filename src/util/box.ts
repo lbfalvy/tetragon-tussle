@@ -63,12 +63,20 @@ export class Box {
     return new Box(new Vec2(xmin, ymin), new Vec2(xmax, ymax));
   }
 
+  public overlaps(other: Box): boolean {
+    return !this.overlap(other).isEmpty();
+  }
+
   public area(): number {
     return this.sizeX() * this.sizeY();
   }
 
   public isEmpty(): boolean {
     return this.sizeX() === 0 || this.sizeY() === 0;
+  }
+
+  public xywh(): [number, number, number, number] {
+    return [this.minX(), this.minY(), this.sizeX(), this.sizeY()]
   }
 }
 

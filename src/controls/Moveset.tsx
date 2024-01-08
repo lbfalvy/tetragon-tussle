@@ -1,8 +1,9 @@
 import React from "react";
 import "./Moveset.scss";
-import { KeyboardPlayer, KeyboardPlayerEditor } from "./KeyboardPlayer";
-import { Vec2 } from "./util/vec2";
+import { KeyboardPlayer, KeyboardPlayerEditor, makeBinds } from "./KeyboardPlayer";
+import { Vec2 } from "../util/vec2";
 import { classList } from "@lbfalvy/react-utils";
+import { GamepadPlayer, GamepadPlayerEditor, defaultGamepads, useGamepads } from "./GamepadPlayer";
 
 export interface MoveSet {
   getHdgInput(): Vec2;
@@ -19,14 +20,16 @@ export interface MoveSetClass {
 }
 
 const LSVariants = [
-  KeyboardPlayer
+  KeyboardPlayer,
+  GamepadPlayer,
 ] as MoveSetClass[];
 
 const LSKEY = "tetragon-tussle-input-configs-0";
 
 export const defaultInputs = (): MoveSet[] => [
-  new KeyboardPlayer("w", "a", "s", "d", "v", "b"),
-  new KeyboardPlayer("ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight", "l", "k"),
+  new KeyboardPlayer(makeBinds("w", "a", "s", "d", "v", "b")),
+  new KeyboardPlayer(makeBinds("ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight", "l", "k")),
+  ...defaultGamepads(),
 ];
 
 export function parseMoveSet(text: string): MoveSet { 
@@ -53,6 +56,11 @@ export function saveInputConfigs(movesets: MoveSet[]) {
   localStorage.setItem(LSKEY, saved);
 }
 
+function useInputConfigs(): MoveSet[] {
+  useGamepads();
+  return defaultInputs();
+}
+
 interface EditMovesetProps {
   value: MoveSet,
   onChange: (v: MoveSet) => void
@@ -65,7 +73,7 @@ export function EditMoveset({ value, onChange }: EditMovesetProps): React.ReactE
       <button className="open-button" onClick={() => setDdOpen(true)}>Select a preset</button>
       <div className="dropdown-contents">
         <button onClick={() => setDdOpen(false)}>Cancel</button>
-        {loadInputConfigs().map((ms, i) => <React.Fragment key={i}>
+        {useInputConfigs().map((ms, i) => <React.Fragment key={i}>
           <button onClick={() => {
             onChange(ms);
             setDdOpen(false);
@@ -76,6 +84,8 @@ export function EditMoveset({ value, onChange }: EditMovesetProps): React.ReactE
     <span className="edit">
       {value instanceof KeyboardPlayer?
         <KeyboardPlayerEditor value={value} onChange={input => onChange(input)} />
+      :value instanceof GamepadPlayer?
+        <GamepadPlayerEditor value={value} onChange={input => onChange(input)} />
       :<>Cannot edit unrecognized input method. Pick a default to modify.</>}
     </span>
   </span>

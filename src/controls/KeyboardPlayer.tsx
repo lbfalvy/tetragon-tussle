@@ -1,22 +1,25 @@
 import React from "react";
 import "./KeyboardPlayer.scss";
 import { KeyInput } from "./KeyInput";
-import { getKey } from "./keystates";
-import { Vec2 } from "./util/vec2";
-import { MoveSet } from "./Moveset";
+import { getKey } from "./getKey";
+import { Vec2 } from "../util/vec2";
+import { MoveSet, MoveSetClass } from "./Moveset";
+import { zip } from "@lbfalvy/array-utils";
+
+const BUTTONS = ["up", "left", "down", "right", "primary", "secondary"] as const;
+type KeyCmd = (typeof BUTTONS)[number];
+export type Keybinds = Record<KeyCmd, string>;
+export function makeBinds(...keys: string[] & { length: (typeof BUTTONS)["length"]}): Keybinds {
+  return Object.fromEntries(zip([...BUTTONS] as KeyCmd[], keys)) as Keybinds
+}
 
 export class KeyboardPlayer implements MoveSet {
-  class = KeyboardPlayer;
+  class: MoveSetClass = KeyboardPlayer;
   static id = "KeyboardPlayer-0";
 
   private lastNonZero: Vec2;
   public constructor(
-    public up: string,
-    public left: string,
-    public down: string,
-    public right: string,
-    public primary: string,
-    public secondary: string
+    public keys: Keybinds,
   ) {
     Object.defineProperty(this, "class", { enumerable: false, value: this.class });
     this.lastNonZero = new Vec2(1, 0);
@@ -24,8 +27,8 @@ export class KeyboardPlayer implements MoveSet {
 
   getMoveInput(): Vec2 {
     const move = new Vec2(
-      (getKey(this.left) ? -1 : 0) + (getKey(this.right) ? 1 : 0),
-      (getKey(this.up) ? -1 : 0) + (getKey(this.down) ? 1 : 0),
+      (getKey(this.keys.left) ? -1 : 0) + (getKey(this.keys.right) ? 1 : 0),
+      (getKey(this.keys.up) ? -1 : 0) + (getKey(this.keys.down) ? 1 : 0),
     );
     if (!move.isZero()) this.lastNonZero = move;
     return move;
@@ -37,28 +40,24 @@ export class KeyboardPlayer implements MoveSet {
   }
 
   getSwitch(id: string): boolean {
-    if (id === "primary") return getKey(this.primary);
-    if (id === "secondary") return getKey(this.secondary);
+    if (id === "primary") return getKey(this.keys.primary);
+    if (id === "secondary") return getKey(this.keys.secondary);
     return false;
   }
 
   toString(): string {
-    const {up, left, down, right, primary, secondary} = this;
+    const {up, left, down, right, primary, secondary} = this.keys;
     return `${up}/${left}/${down}/${right}, ${primary} & ${secondary}`;
   }
 
   serialize(): string {
-    const {up, left, down, right, primary, secondary} = this;
-    return JSON.stringify({up, left, down, right, primary, secondary});
+    return JSON.stringify(this.keys);
   }
 
   static parse(str: string): KeyboardPlayer {
-    const data = JSON.parse(str) as Record<string, string>;
-    return new KeyboardPlayer(data.up, data.down, data.left, data.right, data.primary, data.secondary);
+    return new KeyboardPlayer(JSON.parse(str) as Keybinds);
   }
 }
-
-const BUTTONS = ["up", "left", "down", "right", "primary", "secondary"] as const;
 
 interface KeyboardPlayerEditorProps {
   value: KeyboardPlayer,
@@ -70,8 +69,11 @@ export function KeyboardPlayerEditor({ value, onChange }: KeyboardPlayerEditorPr
     {BUTTONS.map(button => <label key={button}>
       <span>{button[0].toUpperCase()}{button.slice(1)}: </span>
       <KeyInput
-        value={value[button]}
-        onChange={key => onChange(Object.assign(value, { [button]: key }))}
+        value={value.keys[button]}
+        onChange={key => {
+          const binds = Object.assign({ [button]: key }, value.keys);
+          onChange(new KeyboardPlayer(binds))
+        }}
       />
     </label>)}
   </span>

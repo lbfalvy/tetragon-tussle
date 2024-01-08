@@ -35,8 +35,11 @@ module.exports =
       varsIgnorePattern: "^_",
       argsIgnorePattern: "^_",
     }],
+    "@typescript-eslint/no-empty-function": "off",
     "@typescript-eslint/restrict-template-expressions": "off",
     "@typescript-eslint/no-confusing-void-expression": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-non-null-assertion": "off",
   },
   ignorePatterns: ["src/**/*.test.ts", ".eslintrc.cjs"]
 };
