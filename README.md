@@ -8,12 +8,10 @@ Just typescript really, the game draws graphics directly with JS to a HTML5 canv
 
 ## To-Do, in no particular order
 
-- scoring, gamemodes, game over screen
-- HP, HP indicator
-- more maps & a map selector
-- more weapons & a concurrent weapon selector
-- secondary weapon support
-- controller input
+- death match option
+- a concurrent weapon selector
+- more weapons
+- more maps
 
 ## I would like to have these
 
