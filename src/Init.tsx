@@ -89,7 +89,7 @@ export function Init({ onSubmit }: InitProps): React.ReactElement {
             onSpawn(game, player) {
               const g = game.createEntity(new Gun(player, "primary"));
               const s = game.createEntity(new Shield(player, "secondary"));
-              return () => { game.entities.delete(g.id); game.entities.delete(s.id); }
+              return () => { game.destroyEntity(g); game.destroyEntity(s); }
             }
           })),
           entities: map.entities,

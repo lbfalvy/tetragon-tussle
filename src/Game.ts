@@ -37,12 +37,16 @@ export interface PlayerState {
   inert_collision?: Vec2 | undefined
   /** position adjustment due to collisions in previous frame */
   collision?: Vec2 | undefined,
+  /** whether this player touched the ground on the previous frame */
+  can_jump: boolean,
   onDeath: (() => void) | undefined
 }
 
 export interface EntityCfg {
+  create?: undefined | ((entity: EntityState) => void),
   tick?: undefined | ((entity: EntityState, dt: DOMHighResTimeStamp) => void),
   draw?: undefined | ((ctx: CanvasRenderingContext2D) => void),
+  delete?: undefined | ((entity: EntityState) => void),
 }
 
 export interface EntityState {
@@ -76,7 +80,14 @@ export class Game {
   }
 
   public createEntity(cfg: EntityCfg): EntityState {
-    return this.entities.create(id => ({ cfg, game: this, id }));
+    const entity = this.entities.create(id => ({ cfg, game: this, id }));
+    cfg.create?.(entity);
+    return entity;
+  }
+
+  public destroyEntity(entity: EntityState) {
+    this.entities.delete(entity.id);
+    entity.cfg.delete?.(entity);
   }
 
   public spawn(cfg: PlayerCfg): PlayerState {
@@ -89,6 +100,7 @@ export class Game {
       prev_v: Vec2.ZERO,
       onDeath: undefined,
       invulnerable: false,
+      can_jump: false,
     }));
     player.onDeath = cfg.onSpawn?.(this, player);
     return player;
@@ -156,6 +168,8 @@ export class Game {
     const dt = this.lastTime === undefined ? 0 : currentTime - this.lastTime;
     for (const [_, entity] of this.entities) entity.cfg.tick?.(entity, dt);
     for (const [_, player] of this.players) updatePlayer(player, dt);
+    for (const [_, player] of this.players) player.can_jump = false;
+    for (const [_, player] of this.players) apply_V(player, dt);
     this.lastTime = currentTime;
   }
 }
@@ -187,6 +201,7 @@ function apply_V(player: PlayerState, dt: number) {
     });
     nearby_boxes.sort((a, b) => a[0] - b[0])
     const old_pos = player.pos;
+    player.can_jump ||= 0 < nearby_boxes.length;
     for (const [_, box] of nearby_boxes) {
       const offset = box.pushOut(playerBox(player));
       if (offset !== undefined) bump(player, offset);
@@ -197,6 +212,8 @@ function apply_V(player: PlayerState, dt: number) {
       if (id === player.id) continue;
       const offset = playerBox(other).pushOut(playerBox(player));
       if (offset !== undefined) {
+        player.can_jump ||= other.can_jump;
+        other.can_jump ||= player.can_jump;
         let own_conflict_rate: number | undefined;
         let is_blocked = false;
         if (collision_dir !== undefined) {
@@ -225,8 +242,8 @@ function apply_V(player: PlayerState, dt: number) {
       }
     }
     const total_offset = old_pos.sub(player.pos);
-    if (total_offset.isZero()) continue;
     player.collision = total_offset;
+    if (total_offset.isZero()) continue;
     return;
   }
   player.collision = undefined;
@@ -248,7 +265,7 @@ function updatePlayer(player: PlayerState, dt: DOMHighResTimeStamp) {
       : Math.min(v.get(axis), Math.max(-bound, v.get(axis) + change))
   );
   player.v = boundedUpdate(player.v, "x", MAX_MOVE, input.getX() * ACCEL);
-  if (input.getY() < -.5 && player.collision !== undefined) {
+  if (input.getY() < -.5 && player.can_jump && player.collision) {
     const floor_jump = between(1 / 4 * Math.PI, player.collision.angle(), 3 / 4 * Math.PI);
     player.v = player.v.setY(floor_jump ? -JUMP_V : -WALLJUMP_V);
   } else {
@@ -266,5 +283,4 @@ function updatePlayer(player: PlayerState, dt: DOMHighResTimeStamp) {
   }
   player.v = player.v.add(player.game.GRAVITY.scale(dt));
   if (!playArea(player.game.cfg).contains(player.pos)) player.game.kill(player);
-  apply_V(player, dt);
 }

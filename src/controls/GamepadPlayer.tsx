@@ -4,6 +4,7 @@ import { MoveSet } from "./Moveset";
 import { startAnimation } from "../util/startAnimation";
 import { mapMaxIndex } from "@lbfalvy/array-utils";
 import { produce } from "immer";
+import { Emit, Variable, variable } from "@lbfalvy/mini-events";
 
 export interface GamepadAxis {
   index: number,
@@ -50,18 +51,25 @@ export class GamepadPlayer implements MoveSet {
   static id = "GamepadPlayer";
 
   public gamepad: Gamepad|undefined;
+  private primary: Variable<boolean>;
+  private secondary: Variable<boolean>;
+  private setPrimary: Emit<[boolean]>;
+  private setSecondary: Emit<[boolean]>;
+  private stopTrackinng: (() => void) | undefined;
 
   public constructor(
     public gamepad_id: string,
     public binds: GamepadBinds,
   ) {
+    [this.setPrimary, this.primary] = variable(false);
+    [this.setSecondary, this.secondary] = variable(false);
     this.gamepad = getGamepads().find(gp => gp.id === gamepad_id);
     window.addEventListener("gamepaddisconnected", ev => {
-      if (ev.gamepad.id === gamepad_id) this.gamepad = undefined;
+      if (ev.gamepad.id === gamepad_id) this.stopTrackinng!();
       console.log("Gamepad disconnected");
     });
     window.addEventListener("gamepadconnected", ev => {
-      if (ev.gamepad.id === gamepad_id) this.gamepad = ev.gamepad;
+      if (ev.gamepad.id === gamepad_id) this.startTracking(ev.gamepad);
       console.log("Gamepad connected");
     })
   }
@@ -81,9 +89,10 @@ export class GamepadPlayer implements MoveSet {
     return new Vec2(1, 0);
   }
 
-  public getSwitch(id: string): boolean {
-    if (id !== "primary" && id !== "secondary") return false;
-    return this.gamepad?.buttons[this.binds.buttons[id]]?.pressed ?? false;
+  public switch(id: string): Variable<boolean> {
+    if (id === "primary") return this.primary;
+    if (id === "secondary") return this.secondary;
+    throw new Error("Unrecognized switch");
   }
 
   public toString(): string {
@@ -97,6 +106,19 @@ export class GamepadPlayer implements MoveSet {
   public static parse(text: string): MoveSet {
     const [id, binds] = JSON.parse(text) as [string, GamepadBinds];
     return new GamepadPlayer(id, binds);
+  }
+
+  private startTracking(gp: Gamepad) {
+    this.gamepad = gp;
+    const stop = startAnimation(() => {
+      this.setPrimary(gp.buttons[this.binds.buttons.primary].pressed);
+      this.setSecondary(gp.buttons[this.binds.buttons.secondary].pressed);
+    });
+    this.stopTrackinng = () => {
+      stop();
+      this.gamepad = undefined;
+      this.stopTrackinng = undefined;
+    }
   }
 }
 

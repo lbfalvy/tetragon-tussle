@@ -32,7 +32,7 @@ export class Shield implements Weapon {
 
   public tick() {
     if (!this.raised && !this.cooling_down) {
-      if (!this.player.cfg.moveset.getSwitch(this.trigger)) return;
+      if (!this.player.cfg.moveset.switch(this.trigger).get()) return;
       this.raised = true;
       this.player.invulnerable = true;
       setTimeout(() => {

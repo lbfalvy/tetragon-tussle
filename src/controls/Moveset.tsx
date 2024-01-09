@@ -4,11 +4,12 @@ import { KeyboardPlayer, KeyboardPlayerEditor, makeBinds } from "./KeyboardPlaye
 import { Vec2 } from "../util/vec2";
 import { classList } from "@lbfalvy/react-utils";
 import { GamepadPlayer, GamepadPlayerEditor, defaultGamepads, useGamepads } from "./GamepadPlayer";
+import { Variable } from "@lbfalvy/mini-events";
 
 export interface MoveSet {
   getHdgInput(): Vec2;
   getMoveInput(): Vec2;
-  getSwitch(id: string): boolean;
+  switch(id: string): Variable<boolean>
   serialize(): string;
   toString(): string;
   readonly class: MoveSetClass;

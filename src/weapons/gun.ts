@@ -28,7 +28,7 @@ export class Gun implements Weapon {
     this.time_since_last_shot += dt;
     if (
       this.clip === 0
-      || !this.player.cfg.moveset.getSwitch(this.trigger)
+      || !this.player.cfg.moveset.switch(this.trigger).get()
       || this.time_since_last_shot <= this.shot_time
     ) return;
     this.shoot();
@@ -64,17 +64,17 @@ export class Bullet implements EntityCfg {
   ) {}
 
   public diverge(ent: EntityState) {
-    ent.game.entities.delete(ent.id);
+    ent.game.destroyEntity(ent);
   }
 
   public wallHit(ent: EntityState, _: Tile) {
-    ent.game.entities.delete(ent.id);
+    ent.game.destroyEntity(ent);
   }
 
   public playerHit(ent: EntityState, player: PlayerState) {
     ent.game.damage(player, 0.3, player);
     if (!player.invulnerable) player.v = player.v.add(this.v.normalize().scale(this.knockback));
-    ent.game.entities.delete(ent.id);
+    ent.game.destroyEntity(ent);
   }
 
   public move(_: EntityState, dt: number) {

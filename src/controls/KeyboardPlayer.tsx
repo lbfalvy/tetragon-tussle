@@ -1,10 +1,11 @@
 import React from "react";
 import "./KeyboardPlayer.scss";
 import { KeyInput } from "./KeyInput";
-import { getKey } from "./getKey";
+import { key } from "./key";
 import { Vec2 } from "../util/vec2";
 import { MoveSet, MoveSetClass } from "./Moveset";
 import { zip } from "@lbfalvy/array-utils";
+import { Variable } from "@lbfalvy/mini-events";
 
 const BUTTONS = ["up", "left", "down", "right", "primary", "secondary"] as const;
 type KeyCmd = (typeof BUTTONS)[number];
@@ -17,18 +18,23 @@ export class KeyboardPlayer implements MoveSet {
   class: MoveSetClass = KeyboardPlayer;
   static id = "KeyboardPlayer-0";
 
+
+  private keyVars: Record<KeyCmd, Variable<boolean>>;
   private lastNonZero: Vec2;
   public constructor(
     public keys: Keybinds,
   ) {
+    this.keyVars = Object.fromEntries(
+      Object.entries(keys).map(([keyCmd, keyName]) => [keyCmd as KeyCmd, key(keyName)])
+    ) as Record<KeyCmd, Variable<boolean>>;
     Object.defineProperty(this, "class", { enumerable: false, value: this.class });
     this.lastNonZero = new Vec2(1, 0);
   }
 
   getMoveInput(): Vec2 {
     const move = new Vec2(
-      (getKey(this.keys.left) ? -1 : 0) + (getKey(this.keys.right) ? 1 : 0),
-      (getKey(this.keys.up) ? -1 : 0) + (getKey(this.keys.down) ? 1 : 0),
+      (this.keyVars.left.get() ? -1 : 0) + (this.keyVars.right.get() ? 1 : 0),
+      (this.keyVars.up.get() ? -1 : 0) + (this.keyVars.down.get() ? 1 : 0),
     );
     if (!move.isZero()) this.lastNonZero = move;
     return move;
@@ -39,10 +45,10 @@ export class KeyboardPlayer implements MoveSet {
     return this.lastNonZero;
   }
 
-  getSwitch(id: string): boolean {
-    if (id === "primary") return getKey(this.keys.primary);
-    if (id === "secondary") return getKey(this.keys.secondary);
-    return false;
+  switch(id: string): Variable<boolean> {
+    if (id === "primary") return key(this.keys.primary);
+    if (id === "secondary") return key(this.keys.secondary);
+    throw new Error("Unrecognized switch");
   }
 
   toString(): string {
